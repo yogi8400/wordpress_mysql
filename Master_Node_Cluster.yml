@@ -1,0 +1,50 @@
+#INSTALL DOCKER
+ yum install docker -y
+
+#ENABLE DOCKER
+systemctl enable docker --now
+
+#WRITE THE REPO FILE FOR KUBERNETES
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+exclude=kubelet kubeadm kubectl
+EOF
+
+
+#INSTALL KUBELET,KUBECTL AND KUBEADM
+yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+#ENABLE KUBELET
+systemctl enable --now kubelet
+
+#PULL THE CONFIG IMAGES
+ kubeadm config images pull
+ 
+#Edit the daemon.json and cgroupdriver from cgroupfs to systemd.
+cat  /etc/docker/daemon.json
+{
+  "exec-opts": ["native.cgroupdriver=systemd"]
+}
+
+#Install iproute-tc
+yum install iproute-tc
+
+#Run the below command
+kubeadm init --pod-network-cidr=10.240.0.0/16 --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem
+
+#Now to start using your cluster, you need to run the following as a regular user:
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+#Create the token so that worker node can join the master node
+kubeadm token create  --print-join-command
+
+#Setup the FLANNEL
+kubectl apply  -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.ymlMaster_Node_Cluster
